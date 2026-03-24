@@ -110,9 +110,9 @@ export function validateCategory(category: string): { valid: boolean; error?: st
 export function validateSocialUrl(url: string): { valid: boolean; error?: string } {
   const trimmed = url.trim();
   if (!trimmed) return { valid: true }; // optional — empty is fine
-  if (!trimmed.startsWith('https://')) return { valid: false, error: 'Link must start with https://' };
+  const withProtocol = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
   try {
-    new URL(trimmed);
+    new URL(withProtocol);
   } catch {
     return { valid: false, error: 'Please enter a valid URL.' };
   }

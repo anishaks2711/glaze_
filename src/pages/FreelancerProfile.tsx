@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Star, Grid3X3, Users, Play, Pencil, MoreVertical, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { ArrowLeft, Star, Grid3X3, Users, Play, Pencil, MoreVertical, Shield } from 'lucide-react';
 import { IconInstagram, IconTikTok, IconYouTube, IconX, IconLinkedIn, IconGlobe } from '@/components/profile/SocialIcons';
 import type { SocialLinks } from '@/components/profile/SocialLinksForm';
 import donutLogo from '@/assets/Donut.svg';
@@ -39,6 +39,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { GetGlazedModal } from '@/components/GetGlazedModal';
+import { GlazeInviteModal } from '@/components/GlazeInviteModal';
 
 type TabType = 'glazes' | 'portfolio' | 'client';
 
@@ -111,6 +113,7 @@ function ReviewMenu({ review, userId, onEdit, onDelete }: ReviewMenuProps) {
 const FreelancerProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile: authProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('glazes');
@@ -121,7 +124,9 @@ const FreelancerProfile = () => {
   const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
   const [deletingReview, setDeletingReview] = useState<ReviewItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [promptOpen, setPromptOpen] = useState(false);
+  const [getGlazedOpen, setGetGlazedOpen] = useState(false);
+  const [glazeInviteOpen, setGlazeInviteOpen] = useState(false);
+  const [autoGlazeOpen, setAutoGlazeOpen] = useState(false);
 
   const [profile, setProfile] = useState<DbProfile | null>(null);
   const [dbReviews, setDbReviews] = useState<ReviewItem[]>([]);
@@ -213,6 +218,13 @@ const FreelancerProfile = () => {
     };
     fetchAll();
   }, [id, refreshKey, user?.id, authLoading]);
+
+  // Auto-open invite modal when arriving via a shared "Get Glazed" link
+  useEffect(() => {
+    if (!profileLoading && profile && searchParams.get('glaze') === '1' && !isOwner) {
+      setGlazeInviteOpen(true);
+    }
+  }, [profileLoading, profile, searchParams, isOwner]);
 
   if (profileLoading) {
     return (
@@ -394,28 +406,17 @@ const FreelancerProfile = () => {
                 />
               </div>
             )}
+            {isOwner && (
+              <button
+                onClick={() => setGetGlazedOpen(true)}
+                className="ml-auto px-4 py-1.5 rounded-full text-sm font-semibold text-white transition-colors"
+                style={{ backgroundColor: '#DD5402' }}
+              >
+                Get Glazed
+              </button>
+            )}
           </div>
 
-          {/* Review prompt collapsible */}
-          {profile.review_prompt && (
-            <div className="rounded-lg border border-border bg-secondary/40 px-4 py-3">
-              <button
-                className="w-full flex items-center justify-between text-left gap-2"
-                onClick={() => setPromptOpen(v => !v)}
-              >
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  What clients should mention
-                </span>
-                {promptOpen
-                  ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                }
-              </button>
-              {promptOpen && (
-                <p className="mt-2 text-sm text-foreground">{profile.review_prompt}</p>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Tabs */}
@@ -645,6 +646,48 @@ const FreelancerProfile = () => {
           existingReview={editingReview}
           onClose={() => setEditingReview(null)}
           onSubmitted={() => { setEditingReview(null); setRefreshKey(k => k + 1); }}
+        />
+      )}
+
+      {/* Owner: Get Glazed share modal */}
+      {getGlazedOpen && id && (
+        <GetGlazedModal
+          freelancerId={id}
+          freelancerName={profile.full_name}
+          avatarUrl={avatar}
+          reviewPrompt={profile.review_prompt}
+          onClose={() => setGetGlazedOpen(false)}
+        />
+      )}
+
+      {/* Client: invite popup opened via shared link */}
+      {glazeInviteOpen && (
+        <GlazeInviteModal
+          freelancerName={profile.full_name}
+          avatarUrl={avatar}
+          reviewPrompt={profile.review_prompt}
+          isLoggedIn={!!user}
+          canGlaze={canReview}
+          onClose={() => setGlazeInviteOpen(false)}
+          onGlaze={() => {
+            setGlazeInviteOpen(false);
+            if (!user) {
+              navigate(`/login?redirect=/profile/${id}?glaze=1`);
+            } else if (canReview) {
+              setAutoGlazeOpen(true);
+            }
+          }}
+        />
+      )}
+
+      {/* GlazeFlow triggered from invite modal */}
+      {autoGlazeOpen && id && (
+        <GlazeFlow
+          freelancerId={id}
+          freelancerName={profile.full_name}
+          reviewPrompt={profile.review_prompt}
+          onClose={() => setAutoGlazeOpen(false)}
+          onSubmitted={() => { setAutoGlazeOpen(false); setRefreshKey(k => k + 1); }}
         />
       )}
 
